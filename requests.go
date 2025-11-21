@@ -61,7 +61,7 @@ type RequestOption func(*requestConfig)
 // Example:
 //
 //	client := reqws.NewClient("https://api.example.com", 30*time.Second)
-//	body, err := client.Request(ctx, reqws.WithPath("/users"))
+//	body, err := client.Request(ctx, reqws.GET("/users"))
 func NewClient(baseURL string, timeout time.Duration) *Client {
 	return &Client{
 		baseURL: strings.TrimSuffix(baseURL, "/"),
@@ -201,8 +201,8 @@ func (c *Client) buildAndExecuteRequest(ctx context.Context, config *requestConf
 // Example:
 //
 //	body, err := client.Request(ctx,
-//		reqws.WithPath("/users/1"),
-//		reqws.WithMethod("GET"),
+//		reqws.GET("/users/1"),
+//		reqws.WithBearerToken("token"),
 //	)
 func (c *Client) Request(ctx context.Context, opts ...RequestOption) ([]byte, error) {
 	config := &requestConfig{
@@ -241,7 +241,8 @@ func (c *Client) Request(ctx context.Context, opts ...RequestOption) ([]byte, er
 //
 // Example:
 //
-//	client.Request(ctx, reqws.GET("/users"))
+//	body, err := client.Request(ctx, reqws.GET("/users"))
+//	resp, err := client.Do(ctx, reqws.GET("/users"))
 func GET(path string) RequestOption {
 	return func(c *requestConfig) {
 		c.method = "GET"
@@ -370,7 +371,11 @@ func WithMethod(method string) RequestOption {
 //
 // Example:
 //
-//	client.Request(ctx, reqws.WithPath("/users"))
+//	// Legacy approach
+//	client.Request(ctx, reqws.WithMethod("GET"), reqws.WithPath("/users"))
+//
+//	// Better: use shortcut instead
+//	client.Request(ctx, reqws.GET("/users"))
 func WithPath(path string) RequestOption {
 	return func(c *requestConfig) {
 		if !strings.HasPrefix(path, "/") {
@@ -380,6 +385,16 @@ func WithPath(path string) RequestOption {
 	}
 }
 
+// WithQueryParam adds a single query parameter to the request URL.
+// Can be called multiple times to add multiple parameters.
+//
+// Example:
+//
+//	client.Request(ctx,
+//		reqws.GET("/users"),
+//		reqws.WithQueryParam("status", "active"),
+//		reqws.WithQueryParam("limit", "10"),
+//	)
 func WithQueryParam(key, value string) RequestOption {
 	return func(c *requestConfig) {
 		c.queryParams.Add(key, value)
@@ -417,6 +432,16 @@ func WithJSON(body interface{}) RequestOption {
 	return WithBody(body)
 }
 
+// WithHeader adds a custom HTTP header to the request.
+// Can be called multiple times to add multiple headers.
+//
+// Example:
+//
+//	client.Request(ctx,
+//		reqws.GET("/api/data"),
+//		reqws.WithHeader("X-API-Version", "v1"),
+//		reqws.WithHeader("X-Request-ID", "12345"),
+//	)
 func WithHeader(key, value string) RequestOption {
 	return func(c *requestConfig) {
 		c.headers.Add(key, value)
@@ -470,6 +495,17 @@ func WithBasicAuth(username, password string) RequestOption {
 	}
 }
 
+// WithForm adds a form field for multipart/form-data requests.
+// Use this together with WithFile() for file uploads.
+//
+// Example:
+//
+//	client.Do(ctx,
+//		reqws.POST("/upload"),
+//		reqws.WithFile("avatar", fileHeader),
+//		reqws.WithForm("user_id", "123"),
+//		reqws.WithForm("description", "Profile picture"),
+//	)
 func WithForm(key, value string) RequestOption {
 	return func(c *requestConfig) {
 		if c.formFields == nil {
@@ -479,6 +515,15 @@ func WithForm(key, value string) RequestOption {
 	}
 }
 
+// WithFile adds a file to the request for multipart/form-data upload.
+// The formFieldName is the name of the form field (defaults to "file" if empty).
+//
+// Example:
+//
+//	client.Do(ctx,
+//		reqws.POST("/upload"),
+//		reqws.WithFile("avatar", fileHeader),
+//	)
 func WithFile(formFieldName string, file *multipart.FileHeader) RequestOption {
 	return func(c *requestConfig) {
 		c.file = file
@@ -490,6 +535,15 @@ func WithFile(formFieldName string, file *multipart.FileHeader) RequestOption {
 	}
 }
 
+// WithQueryParams adds multiple query parameters at once from url.Values.
+// For adding single parameters, use WithQueryParam() instead.
+//
+// Example:
+//
+//	params := url.Values{}
+//	params.Add("status", "active")
+//	params.Add("limit", "10")
+//	client.Request(ctx, reqws.GET("/users"), reqws.WithQueryParams(params))
 func WithQueryParams(params url.Values) RequestOption {
 	return func(cfg *requestConfig) {
 		if cfg.queryParams == nil {
@@ -576,8 +630,8 @@ func (r *Response) IsServerError() bool {
 // Example:
 //
 //	resp, err := client.Do(ctx,
-//		reqws.WithPath("/users/1"),
-//		reqws.WithMethod("GET"),
+//		reqws.GET("/users/1"),
+//		reqws.WithBearerToken("token"),
 //	)
 //	if err != nil {
 //		return err
